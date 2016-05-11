@@ -1,10 +1,10 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2.7
 import sys, os, dropbox, time
 from datetime import datetime
 
 APP_KEY = ''   # INSERT APP_KEY HERE
 APP_SECRET = ''     # INSERT APP_SECRET HERE
-DELAY = 0.2 # delay between each file (try to stay under API rate limits)
+DELAY = 0.05 # delay between each file (try to stay under API rate limits)
 
 HELP_MESSAGE = \
 """Note: You must specify the path starting with "/", where "/" is the root
@@ -48,7 +48,7 @@ def parse_date(s):
     return datetime.strptime(a, '%a, %d %b %Y %H:%M:%S')
 
 
-def restore_file(client, path, cutoff_datetime, is_deleted, verbose=False):
+def restore_file(client, path, cutoff_datetime, is_deleted, mod_datetime, verbose=False):
     global resume_path
 
     if resume_path:
@@ -58,6 +58,10 @@ def restore_file(client, path, cutoff_datetime, is_deleted, verbose=False):
         else:
             print('Skipping ' + path)
             return
+            
+    if cutoff_datetime >= mod_datetime:
+        print('Skipping unchanged ' + path)
+        return
 
     revisions = client.revisions(path.encode('utf8'))
     current_rev = revisions[0]['rev']
@@ -104,6 +108,7 @@ def restore_file(client, path, cutoff_datetime, is_deleted, verbose=False):
             print(path + ' ' + ('SKIP' if is_deleted else 'DELETE'))
         if not is_deleted:
             client.file_delete(path.encode('utf8'))
+    time.sleep(DELAY)
 
 
 def restore_folder(client, path, cutoff_datetime, verbose=False):
@@ -127,8 +132,7 @@ def restore_folder(client, path, cutoff_datetime, verbose=False):
             restore_folder(client, item['path'], cutoff_datetime, verbose)
         else:
             restore_file(client, item['path'], cutoff_datetime,
-                         item.get('is_deleted', False), verbose)
-        time.sleep(DELAY)
+                         item.get('is_deleted', False), parse_date(item.get('modified')), verbose)
 
 
 def main():
